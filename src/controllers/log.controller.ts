@@ -21,6 +21,10 @@ export class LogController {
       this.logsService.removeClient(clientId);
     });
 
+    response.on('error', () => {
+      this.logsService.removeClient(clientId);
+    });
+
     return this.logsService.addClient(clientId);
   }
 
