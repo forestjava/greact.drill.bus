@@ -1,7 +1,7 @@
 import { Controller, Sse, Injectable, Res, Header } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import type { Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { LogEventData, SseMessageEvent } from '../interfaces/log.interface';
 import { LogsService } from '../services/logs.service';
 
@@ -15,7 +15,7 @@ export class LogController {
   @Header('Pragma', 'no-cache')
   @Header('Expires', '0')
   events(@Res() response: Response): Observable<SseMessageEvent> {
-    const clientId = uuidv4();
+    const clientId = randomUUID();
 
     response.on('close', () => {
       this.logsService.removeClient(clientId);
