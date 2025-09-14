@@ -1,4 +1,4 @@
-import { Controller, Sse, Injectable, Res, Post, Body } from '@nestjs/common';
+import { Controller, Sse, Injectable, Res, Header } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import type { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +11,9 @@ export class LogController {
   constructor(private readonly logsService: LogsService) { }
 
   @Sse()
+  @Header('Cache-Control', 'no-store')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
   events(@Res() response: Response): Observable<SseMessageEvent> {
     const clientId = uuidv4();
 
