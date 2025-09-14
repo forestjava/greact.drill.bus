@@ -1,0 +1,18 @@
+services:
+  greact-bus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    expose:
+      - '3000'
+    environment:
+      - NODE_ENV=production
+      - ENABLE_CORS=${ENABLE_CORS}
+      - CLOUD_API_INGEST_URL=${CLOUD_API_INGEST_URL}      
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true  
