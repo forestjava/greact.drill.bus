@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест SSE логов</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .log-entry {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .success {
+            border-left-color: #28a745;
+            background-color: #d1f2eb;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Мониторинг логов /v1/ingest</h1>
+        
+        <div id="status" class="status disconnected">
+            Отключено
+        </div>
+
+        <div>
+            <button id="connectBtn" onclick="connect()">Подключиться</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Отключиться</button>
+            <button onclick="clearLogs()">Очистить логи</button>
+        </div>
+
+        <h2>Логи событий:</h2>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+
+        function connect() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            // Подключаемся к SSE эндпоинту
+            eventSource = new EventSource('http://localhost:3002/log');
+
+            eventSource.onopen = function(event) {
+                statusDiv.textContent = 'Подключено';
+                statusDiv.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                addLog('info', 'Подключение к серверу установлено', new Date().toISOString());
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addLog(data.status, formatLogMessage(data), data.at, data);
+                } catch (error) {
+                    console.error('Ошибка парсинга события:', error);
+                    addLog('error', 'Ошибка парсинга события: ' + event.data, new Date().toISOString());
+                }
+            };
+
+            eventSource.onerror = function(event) {
+                statusDiv.textContent = 'Ошибка подключения';
+                statusDiv.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                addLog('error', 'Ошибка подключения к серверу', new Date().toISOString());
+            };
+        }
+
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            statusDiv.textContent = 'Отключено';
+            statusDiv.className = 'status disconnected';
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            addLog('info', 'Подключение закрыто', new Date().toISOString());
+        }
+
+        function clearLogs() {
+            logsDiv.innerHTML = '';
+        }
+
+        function formatLogMessage(data) {
+            let message = '';
+            
+            // Извлекаем информацию из request
+            if (data.request) {
+                const method = data.request.method || 'UNKNOWN';
+                const url = data.request.url || '/unknown';
+                message += `${method} ${url}`;
+                
+                if (data.request.query && data.request.query.edge) {
+                    message += ` | Edge: ${data.request.query.edge}`;
+                }
+            }
+            
+            // Добавляем статус
+            message += ` | Status: ${data.status.toUpperCase()}`;
+            
+            // Добавляем информацию об ошибке если есть
+            if (data.error) {
+                if (typeof data.error === 'string') {
+                    message += ` | Error: ${data.error}`;
+                } else if (data.error.message) {
+                    message += ` | Error: ${data.error.message}`;
+                } else {
+                    message += ` | Error: ${JSON.stringify(data.error)}`;
+                }
+            }
+
+            return message;
+        }
+
+        function addLog(type, message, at, data = null) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            const time = new Date(at).toLocaleString('ru-RU');
+            
+            let detailsHtml = '';
+            if (data) {
+                // Создаем детальную информацию для развертывания
+                const details = [];
+                
+                if (data.at) {
+                    details.push(`<strong>Timestamp:</strong> ${data.at}`);
+                }
+                
+                if (data.request) {
+                    details.push(`<strong>Request:</strong><pre>${JSON.stringify(data.request, null, 2)}</pre>`);
+                }
+                
+                if (data.data) {
+                    details.push(`<strong>Data:</strong><pre>${JSON.stringify(data.data, null, 2)}</pre>`);
+                }
+                
+                if (data.error && typeof data.error === 'object') {
+                    details.push(`<strong>Error Details:</strong><pre>${JSON.stringify(data.error, null, 2)}</pre>`);
+                }
+                
+                if (details.length > 0) {
+                    detailsHtml = `
+                        <div style="margin-top: 10px;">
+                            <button onclick="toggleDetails(this)" style="font-size: 0.8em; padding: 2px 8px;">
+                                Показать детали
+                            </button>
+                            <div class="details" style="display: none; margin-top: 5px; font-size: 0.8em;">
+                                ${details.join('<br>')}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            logEntry.innerHTML = `
+                <div class="timestamp">${time}</div>
+                <div>${message}</div>
+                ${detailsHtml}
+            `;
+            
+            logsDiv.insertBefore(logEntry, logsDiv.firstChild);
+            
+            // Ограничиваем количество логов
+            if (logsDiv.children.length > 100) {
+                logsDiv.removeChild(logsDiv.lastChild);
+            }
+        }
+
+        function toggleDetails(button) {
+            const details = button.nextElementSibling;
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+                button.textContent = 'Скрыть детали';
+            } else {
+                details.style.display = 'none';
+                button.textContent = 'Показать детали';
+            }
+        }
+
+        // Автоматическое подключение при загрузке страницы
+        window.onload = function() {
+            connect();
+        };
+
+        // Закрытие подключения при закрытии страницы
+        window.onbeforeunload = function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        };
+    </script>
+</body>
+</html>
