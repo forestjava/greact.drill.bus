@@ -23,11 +23,14 @@ export class IngestController {
     const records: CloudIngestRecord[] = [];
 
     for (const [tag, value] of Object.entries(message.values)) {
+      // Преобразуем boolean в number: false -> 0, true -> 1
+      const numericValue = typeof value === 'boolean' ? (value ? 1 : 0) : value;
+
       records.push({
         edge: query.edge,
         timestamp: message.timestamp,
         tag: tag,
-        value: value,
+        value: numericValue,
       });
     }
 

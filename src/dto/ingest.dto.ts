@@ -1,14 +1,46 @@
-import { IsNumber, IsObject, IsString, IsNotEmpty, IsPositive, Validate, ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+import { IsNumber, IsObject, IsString, IsNotEmpty, IsPositive, IsBoolean, Validate, ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+
+@ValidatorConstraint({ name: 'isNumberOrBoolean', async: false })
+export class IsNumberOrBooleanConstraint implements ValidatorConstraintInterface {
+  validate(value: any, args: ValidationArguments) {
+    return typeof value === 'number' || typeof value === 'boolean';
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return 'Значение должно быть числом или булевым значением';
+  }
+}
 
 export class IngestMessageValuesDto {
-  [tag: string]: number;
+  [tag: string]: number | boolean;
+}
+
+@ValidatorConstraint({ name: 'validateValuesObject', async: false })
+export class ValidateValuesObjectConstraint implements ValidatorConstraintInterface {
+  validate(values: any, args: ValidationArguments) {
+    if (typeof values !== 'object' || values === null || Array.isArray(values)) {
+      return false;
+    }
+
+    for (const [key, value] of Object.entries(values)) {
+      if (typeof value !== 'number' && typeof value !== 'boolean') {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return 'values должен быть объектом, где каждое значение является числом или булевым значением';
+  }
 }
 
 export class IngestMessageDto {
   @IsNumber({}, { message: 'timestamp должен быть числом' })
   timestamp: number;
 
-  @IsObject({ message: 'values должен быть объектом (набор ключ-значение)' })
+  @Validate(ValidateValuesObjectConstraint)
   values: IngestMessageValuesDto;
 }
 
